@@ -547,14 +547,10 @@ const App = () => {
           <button onClick={signOut} className="btn-link">
             🚪 Cerrar sesión
           </button>
-          {isAdmin() && (
-            <>
-              <br />
-              <button onClick={() => setCurrentView('cocina')} className="btn-link">
-                🍽️ Display de Cocina
-              </button>
-            </>
-          )}
+<br />
+<button onClick={() => setCurrentView('cocina')} className="btn-link">
+  🍽️ Display de Cocina
+</button>
         </div>
       </div>
 
