@@ -406,7 +406,24 @@ const App = () => {
       </div>
     );
   }
-
+if (!user) {
+    return (
+      <div className="login-screen">
+        <div className="container">
+          <div className="header">
+            <h1>🍽️ Zulmapp</h1>
+            <p>Sistema de pedidos de comida</p>
+          </div>
+          <div className="login-content">
+            <p>Iniciá sesión con tu cuenta de Google para hacer tu pedido</p>
+            <button onClick={signInWithGoogle} className="btn login-btn">
+              🔐 Iniciar sesión con Google
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const timeAllowed = checkTimeRestriction();
   const currentTime = new Date().toLocaleString('es-AR', {timeZone: 'America/Argentina/Buenos_Aires'});
