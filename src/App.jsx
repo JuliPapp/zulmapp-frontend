@@ -23,11 +23,6 @@ const App = () => {
   const [menuItems, setMenuItems] = useState([]);
   const [autoUpdate, setAutoUpdate] = useState(true);
   
-  // Estados para palabra clave
-  const [accessGranted, setAccessGranted] = useState(false);
-  const [keywordInput, setKeywordInput] = useState('');
-  const [keywordError, setKeywordError] = useState('');
-  
   // Estados del formulario
   const [formData, setFormData] = useState({
     nombre: '',
@@ -313,20 +308,6 @@ const App = () => {
     setTimeout(() => setMessage({ text: '', type: '' }), 5000);
   };
 
-  const checkKeyword = (e) => {
-    e.preventDefault();
-    
-    if (keywordInput.toLowerCase().trim() === 'aaici') {
-      setAccessGranted(true);
-      setKeywordError('');
-      showMessage('✅ Acceso autorizado', 'success');
-    } else {
-      setKeywordError('Palabra clave incorrecta');
-      setKeywordInput('');
-      setTimeout(() => setKeywordError(''), 3000);
-    }
-  };
-
   const isAdmin = () => {
     return user?.email === "juliandanielpappalettera@gmail.com";
   };
@@ -426,32 +407,6 @@ const App = () => {
     );
   }
 
-  if (!user) {
-    return (
-      <div className="login-screen">
-        <div className="container">
-          <div className="header">
-            <h1>🍽️ Zulmapp</h1>
-            <p>Sistema de pedidos de comida</p>
-          </div>
-          <div className="login-content">
-            <p>Iniciá sesión con tu cuenta de Google para hacer tu pedido</p>
-            <button onClick={signInWithGoogle} className="btn login-btn">
-              🔐 Iniciar sesión con Google
-            </button>
-            
-            <button 
-              onClick={() => setAccessGranted(false)} 
-              className="btn-link"
-              style={{ marginTop: '20px', display: 'block' }}
-            >
-              🔒 Cambiar palabra clave
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   const timeAllowed = checkTimeRestriction();
   const currentTime = new Date().toLocaleString('es-AR', {timeZone: 'America/Argentina/Buenos_Aires'});
