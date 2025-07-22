@@ -308,9 +308,15 @@ const App = () => {
     setTimeout(() => setMessage({ text: '', type: '' }), 5000);
   };
 
-  const isAdmin = () => {
-    return user?.email === "juliandanielpappalettera@gmail.com";
-  };
+const adminEmails = new Set([
+  "juliandanielpappalettera@gmail.com",
+  "leandro.binetti@gmail.com",
+  "alanpablomarino@gmail.com"
+]);
+
+const isAdmin = () => {
+  return adminEmails.has(user?.email);
+};
 
   const checkTimeRestriction = () => {
     if (isAdmin()) return true;
