@@ -309,7 +309,7 @@ const App = () => {
   };
 
   const isAdmin = () => {
-    return user?.email === "juliandanielpappalettera@gmail.com","leandro.binetti@gmail.com";
+    return user?.email === "juliandanielpappalettera@gmail.com";
   };
 
   const checkTimeRestriction = () => {
