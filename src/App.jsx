@@ -23,11 +23,6 @@ const App = () => {
   const [menuItems, setMenuItems] = useState([]);
   const [autoUpdate, setAutoUpdate] = useState(true);
   
-  // Estados para palabra clave
-  const [accessGranted, setAccessGranted] = useState(false);
-  const [keywordInput, setKeywordInput] = useState('');
-  const [keywordError, setKeywordError] = useState('');
-  
   // Estados del formulario
   const [formData, setFormData] = useState({
     nombre: '',
@@ -313,20 +308,6 @@ const App = () => {
     setTimeout(() => setMessage({ text: '', type: '' }), 5000);
   };
 
-  const checkKeyword = (e) => {
-    e.preventDefault();
-    
-    if (keywordInput.toLowerCase().trim() === 'aaici') {
-      setAccessGranted(true);
-      setKeywordError('');
-      showMessage('✅ Acceso autorizado', 'success');
-    } else {
-      setKeywordError('Palabra clave incorrecta');
-      setKeywordInput('');
-      setTimeout(() => setKeywordError(''), 3000);
-    }
-  };
-
   const isAdmin = () => {
     return user?.email === "juliandanielpappalettera@gmail.com";
   };
@@ -381,51 +362,7 @@ const App = () => {
     );
   }
 
-  // Pantalla de palabra clave
-  if (!accessGranted) {
-    return (
-      <div className="login-screen">
-        <div className="container">
-          <div className="header">
-            <h1>🍽️ Zulmapp</h1>
-            <p>Sistema de pedidos de comida</p>
-          </div>
-          <div className="login-content">
-            <p>Ingresá la palabra clave para acceder</p>
-            
-            {message.text && (
-              <div className={`message ${message.type}`} style={{ display: 'block', margin: '20px 0' }}>
-                {message.text}
-              </div>
-            )}
-            
-            {keywordError && (
-              <div className="message error" style={{ display: 'block', margin: '20px 0' }}>
-                {keywordError}
-              </div>
-            )}
-            
-            <form onSubmit={checkKeyword}>
-              <div className="form-group">
-                <input
-                  type="password"
-                  value={keywordInput}
-                  onChange={(e) => setKeywordInput(e.target.value)}
-                  placeholder="Palabra clave..."
-                  className="keyword-input"
-                  required
-                />
-              </div>
-              <button type="submit" className="btn login-btn">
-                🔑 Verificar Acceso
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  // Pantalla de login - SIN palabra clave
   if (!user) {
     return (
       <div className="login-screen">
@@ -438,14 +375,6 @@ const App = () => {
             <p>Iniciá sesión con tu cuenta de Google para hacer tu pedido</p>
             <button onClick={signInWithGoogle} className="btn login-btn">
               🔐 Iniciar sesión con Google
-            </button>
-            
-            <button 
-              onClick={() => setAccessGranted(false)} 
-              className="btn-link"
-              style={{ marginTop: '20px', display: 'block' }}
-            >
-              🔒 Cambiar palabra clave
             </button>
           </div>
         </div>
@@ -532,7 +461,7 @@ const App = () => {
     );
   }
 
-  // VISTA PRINCIPAL DE PEDIDOS (existente)
+  // VISTA PRINCIPAL DE PEDIDOS
   return (
     <div className="container">
       <div className="header">
@@ -547,10 +476,10 @@ const App = () => {
           <button onClick={signOut} className="btn-link">
             🚪 Cerrar sesión
           </button>
-<br />
-<button onClick={() => setCurrentView('cocina')} className="btn-link">
-  🍽️ Display de Cocina
-</button>
+          <br />
+          <button onClick={() => setCurrentView('cocina')} className="btn-link">
+            🍽️ Display de Cocina
+          </button>
         </div>
       </div>
 
