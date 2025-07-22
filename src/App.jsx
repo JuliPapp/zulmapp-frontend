@@ -23,15 +23,13 @@ const App = () => {
   const [menuItems, setMenuItems] = useState([]);
   const [autoUpdate, setAutoUpdate] = useState(true);
   
-  // Estados del formulario
+  // Estados del formulario - Solo 2 platos
   const [formData, setFormData] = useState({
     nombre: '',
     plato1: '',
     plato2: '',
-    plato3: '',
     custom1: '',
-    custom2: '',
-    custom3: ''
+    custom2: ''
   });
 
   // Verificar sesión al cargar
@@ -134,10 +132,8 @@ const App = () => {
           nombre: result.order.nombre || '',
           plato1: result.order.plato1 || '',
           plato2: result.order.plato2 || '',
-          plato3: result.order.plato3 || '',
           custom1: '',
-          custom2: '',
-          custom3: ''
+          custom2: ''
         });
       }
     } catch (error) {
@@ -173,9 +169,9 @@ const App = () => {
         if (!error && pedidos) {
           const allDishes = [];
           
-          // Procesar todos los pedidos para obtener orden cronológico
+          // Procesar todos los pedidos para obtener orden cronológico - Solo plato1 y plato2
           pedidos.forEach(pedido => {
-            [pedido.plato1, pedido.plato2, pedido.plato3].forEach(plato => {
+            [pedido.plato1, pedido.plato2].forEach(plato => {
               if (plato && plato.trim() !== '') {
                 allDishes.push({
                   plato: plato.trim(),
@@ -207,8 +203,7 @@ const App = () => {
       const orderData = {
         nombre: formData.nombre,
         plato1: getRealPlatoValue(1),
-        plato2: getRealPlatoValue(2),
-        plato3: getRealPlatoValue(3)
+        plato2: getRealPlatoValue(2)
       };
 
       const result = await apiCall('/api/pedidos', {
@@ -247,10 +242,8 @@ const App = () => {
           nombre: '',
           plato1: '',
           plato2: '',
-          plato3: '',
           custom1: '',
-          custom2: '',
-          custom3: ''
+          custom2: ''
         });
         loadStats();
         loadKitchenData(); // Actualizar también datos de cocina
@@ -527,7 +520,6 @@ const isAdmin = () => {
             <ul className="dish-list">
               {currentOrder.plato1 && <li>{currentOrder.plato1}</li>}
               {currentOrder.plato2 && <li>{currentOrder.plato2}</li>}
-              {currentOrder.plato3 && <li>{currentOrder.plato3}</li>}
             </ul>
             {currentOrder.dishNumbers && currentOrder.dishNumbers.length > 0 && (
               <div className="dish-numbers-info">
@@ -590,7 +582,7 @@ const isAdmin = () => {
 
             {/* Plato 2 */}
             <div className="form-group">
-              <label htmlFor="plato2">🍽️ Plato 2 (Opcional)</label>
+              <label htmlFor="plato2">🍽️ Segundo Plato (Opcional)</label>
               <select
                 id="plato2"
                 value={formData.plato2}
@@ -607,30 +599,6 @@ const isAdmin = () => {
                   type="text"
                   value={formData.custom2}
                   onChange={(e) => setFormData(prev => ({ ...prev, custom2: e.target.value }))}
-                  placeholder="Escribe tu plato personalizado..."
-                />
-              )}
-            </div>
-
-            {/* Plato 3 */}
-            <div className="form-group">
-              <label htmlFor="plato3">🍽️ Plato 3 (Opcional)</label>
-              <select
-                id="plato3"
-                value={formData.plato3}
-                onChange={(e) => handlePlatoChange(3, e.target.value)}
-              >
-                <option value="">Sin tercer plato</option>
-                {menuItems.map((item, index) => (
-                  <option key={index} value={item}>{item}</option>
-                ))}
-                <option value="CUSTOM">📝 Escribir otro plato...</option>
-              </select>
-              {formData.plato3 === 'CUSTOM' && (
-                <input
-                  type="text"
-                  value={formData.custom3}
-                  onChange={(e) => setFormData(prev => ({ ...prev, custom3: e.target.value }))}
                   placeholder="Escribe tu plato personalizado..."
                 />
               )}
