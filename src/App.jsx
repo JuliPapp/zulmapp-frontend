@@ -649,7 +649,7 @@ const App = () => {
         </form>
       )}
       <button className="btn transfer-btn" onClick={copiarYActuar}>
-        📋 Copiar CVU y continuar
+        📋 Copiar CVU
       </button>
       <div className="stats-container">
         <h3 className="stats-title">📊 Estadísticas del Día</h3>
