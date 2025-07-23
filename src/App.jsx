@@ -26,23 +26,31 @@ const isAdminUser = (user) => ADMIN_EMAILS.includes(user?.email);
 const isWithinOrderTime = () => {
   const now = new Date();
   const argTime = new Date(
-    now.toLocaleString('en-US', {
-      timeZone: 'America/Argentina/Buenos_Aires',
-    }),
+    now.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' })
   );
-
+  const day = argTime.getDay(); // 0=Domingo, 1=Lunes, ..., 6=Sábado
   const hour = argTime.getHours();
   const minute = argTime.getMinutes();
-  const day = argTime.getDay();
 
-  // Solo días hábiles
-  const isWeekday = day >= 1 && day <= 5;
+  const isWeekday = day >= 1 && day <= 5; // Lunes a viernes
+  const isFriday = day === 5;
+  const isSaturday = day === 6;
+  const isSunday = day === 0;
+  const isMonday = day === 1;
 
   const after14 = hour >= 14;
   const before1015 = hour < 10 || (hour === 10 && minute <= 15);
 
-  return isWeekday && (after14 || before1015);
+  // Lógica normal de lunes a viernes
+  if (isWeekday) return after14 || before1015;
+
+  // Excepción: viernes después de las 14:00 hasta lunes 10:15
+  if (isFriday && after14) return true;
+  if ((isSaturday || isSunday) || (isMonday && before1015)) return true;
+
+  return false;
 };
+
 
 // Llamada autenticada a la API
 const apiCall = async (endpoint, options = {}) => {
