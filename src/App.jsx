@@ -7,6 +7,22 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// Calcula la fecha del ciclo según la hora de Buenos Aires.
+// Si ya son las 14:00 o más, devuelve la fecha de mañana; si no, devuelve la de hoy.
+const getCycleDate = () => {
+  const ahoraEnBA = new Date(
+    new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' })
+  );
+  const hora = ahoraEnBA.getHours();
+  if (hora >= 14) {
+    const mañana = new Date(ahoraEnBA);
+    mañana.setDate(ahoraEnBA.getDate() + 1);
+    return mañana.toISOString().split('T')[0];
+  }
+  return ahoraEnBA.toISOString().split('T')[0];
+};
+
+
 // API backend
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -198,48 +214,56 @@ const App = () => {
   }, [showMessage]);
 
   // Cargar datos de cocina
-  const loadKitchenData = useCallback(async () => {
-    try {
-      const [apiResult, pedidosResult] = await Promise.all([
-        apiCall('/api/stats'),
-        (async () => {
-          const today = new Date().toISOString().split('T')[0];
-          const { data: pedidos, error } = await supabase
-            .from('pedidos')
-            .select('*')
-            .eq('fecha', today)
-            .order('timestamp', { ascending: true });
-          if (error) throw error;
-          return pedidos;
-        })(),
-      ]);
-      if (apiResult.success) {
-        const statsRes = apiResult.stats;
-        const pedidos = pedidosResult || [];
-        const allDishes = [];
-        pedidos.forEach((pedido) => {
-          [pedido.plato1, pedido.plato2].forEach((plato) => {
-            if (plato && plato.trim()) {
-              allDishes.push({
-                plato: plato.trim(),
-                nombre: pedido.nombre,
-                usuario: pedido.usuario,
-                timestamp: pedido.timestamp,
-              });
-            }
-          });
+const loadKitchenData = useCallback(async () => {
+  try {
+    // Llamamos a la API de stats y a la tabla de pedidos en paralelo
+    const [apiResult, pedidosResult] = await Promise.all([
+      apiCall('/api/stats'),
+      (async () => {
+        // Usamos la fecha de ciclo en lugar de la fecha actual pura
+        const cycleDate = getCycleDate();
+        const { data: pedidos, error } = await supabase
+          .from('pedidos')
+          .select('*')
+          .eq('fecha', cycleDate)
+          .order('timestamp', { ascending: true });
+        if (error) throw error;
+        return pedidos;
+      })(),
+    ]);
+
+    if (apiResult.success) {
+      const statsRes = apiResult.stats;
+      const pedidos = pedidosResult || [];
+      const allDishes = [];
+
+      // Recorremos plato1, plato2 y plato3 para no dejar ninguno afuera
+      pedidos.forEach((pedido) => {
+        [pedido.plato1, pedido.plato2, pedido.plato3].forEach((plato) => {
+          if (plato && plato.trim()) {
+            allDishes.push({
+              plato: plato.trim(),
+              nombre: pedido.nombre,
+              usuario: pedido.usuario,
+              timestamp: pedido.timestamp,
+            });
+          }
         });
-        setKitchenData({
-          dishes: allDishes,
-          totalDishes: allDishes.length,
-          totalPeople: statsRes.totalOrders,
-        });
-      }
-    } catch (err) {
-      console.error('Error cargando datos de cocina:', err);
-      showMessage('Error cargando datos de cocina', 'error');
+      });
+
+      // Actualizamos el estado con la lista completa de platos y el total
+      setKitchenData({
+        dishes: allDishes,
+        totalDishes: allDishes.length,
+        totalPeople: statsRes.totalOrders,
+      });
     }
-  }, [showMessage]);
+  } catch (err) {
+    console.error('Error cargando datos de cocina:', err);
+    showMessage('Error cargando datos de cocina', 'error');
+  }
+}, [showMessage]);
+
 
   // Cargar datos al iniciar sesión
   useEffect(() => {
