@@ -30,13 +30,18 @@ const isWithinOrderTime = () => {
       timeZone: 'America/Argentina/Buenos_Aires',
     }),
   );
-  const day = argTime.getDay();
+
   const hour = argTime.getHours();
   const minute = argTime.getMinutes();
-  const weekday = day >= 1 && day <= 5;
-  // abierto si la hora es >=14 o <10, o si son las 10 con minuto <=15
-  const inRange = hour >= 14 || hour < 10 || (hour === 10 && minute <= 15);
-  return weekday && inRange;
+  const day = argTime.getDay();
+
+  // Solo días hábiles
+  const isWeekday = day >= 1 && day <= 5;
+
+  const after14 = hour >= 14;
+  const before1015 = hour < 10 || (hour === 10 && minute <= 15);
+
+  return isWeekday && (after14 || before1015);
 };
 
 // Llamada autenticada a la API
