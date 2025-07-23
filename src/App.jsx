@@ -293,6 +293,7 @@ const App = () => {
           body: JSON.stringify(orderData),
         });
         if (result.success) {
+          window.alert('¡Pagalo rata asquerosa! 🐀');
           showMessage(result.message, 'success');
           await loadCurrentOrder();
           await loadStats();
