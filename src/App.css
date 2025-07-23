@@ -50,10 +50,36 @@ body {
   cursor: pointer;
   font-size: 14px;
   margin-top: 5px;
+  
+  /* Fixes para Chrome iOS */
+  touch-action: manipulation;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  
+  /* Asegurar que sea clickeable */
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
+  
+  /* Mejorar el área de toque */
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
 }
 
 .btn-link:hover {
   color: #3d2a1e;
+}
+
+.btn-link:active {
+  background: rgba(89, 63, 48, 0.1);
+  border-radius: 4px;
 }
 
 .time-restriction {
@@ -143,6 +169,10 @@ body {
   transition: all 0.3s ease;
   width: 100%;
   margin-top: 20px;
+  
+  /* Mejoras para mobile */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .btn:hover {
@@ -412,6 +442,10 @@ body {
   transition: all 0.3s ease;
   width: auto;
   margin: 0;
+  
+  /* Mejoras para mobile */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .kitchen-btn:hover {
@@ -450,6 +484,10 @@ body {
 .kitchen-display {
   padding: 20px;
   min-height: 400px;
+  
+  /* Mejoras para scroll en mobile */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .no-dishes {
@@ -569,5 +607,17 @@ body {
   
   .dish-name {
     font-size: 1.1em;
+  }
+  
+  /* Correcciones específicas para botones en móvil */
+  .btn-link {
+    font-size: 16px; /* Chrome iOS necesita 16px mínimo para no hacer zoom */
+    padding: 12px 15px;
+    min-height: 48px; /* Área de toque más grande en móvil */
+  }
+  
+  .form-group input[type="text"],
+  .form-group select {
+    font-size: 16px; /* Prevenir zoom en iOS */
   }
 }
