@@ -633,7 +633,7 @@ const App = () => {
               )}
             </div>
             <button className="btn" type="submit" disabled={!timeAllowed}>
-              {currentOrder ? '✏️ Actualizar Pedido' : '📝 Enviar Pedido'}
+              {currentOrder ? '🔃 Actualizar Pedido' : '✅ Enviar Pedido'}
             </button>
             {currentOrder && (
               <button
@@ -649,7 +649,7 @@ const App = () => {
         </form>
       )}
       <button className="btn transfer-btn" onClick={copiarYActuar}>
-        📋 Copiar CVU
+        Copiar CVU
       </button>
       <div className="stats-container">
         <h3 className="stats-title">📊 Estadísticas del Día</h3>
