@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import './App.css';
 
@@ -7,83 +7,126 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// URL del backend
+// API backend
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
+// Correos de admin configurables por variable de entorno (separados por coma)
+const ADMIN_EMAILS = (
+  import.meta.env.VITE_ADMIN_EMAILS ||
+  'juliandanielpappalettera@gmail.com,leandro.binetti@gmail.com,alanpablomarino@gmail.com'
+)
+  .split(',')
+  .map((e) => e.trim())
+  .filter(Boolean);
+
+/**
+ * Verifica si un usuario es administrador.
+ */
+const isAdminUser = (user) => ADMIN_EMAILS.includes(user?.email);
+
+/**
+ * Verifica si la hora actual está dentro del horario de pedidos (7:00–10:15 AM, lunes a viernes).
+ */
+const isWithinOrderTime = () => {
+  const now = new Date();
+  const argTime = new Date(
+    now.toLocaleString('en-US', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+    }),
+  );
+  const day = argTime.getDay();
+  const hour = argTime.getHours();
+  const minute = argTime.getMinutes();
+  const weekday = day >= 1 && day <= 5;
+  const inRange = (hour >= 7 && hour < 10) || (hour === 10 && minute <= 15);
+  return weekday && inRange;
+};
+
+/**
+ * Envía una solicitud autenticada al backend usando el token de Supabase.
+ */
+const apiCall = async (endpoint, options = {}) => {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...(options.headers || {}),
+    },
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+};
+
 const App = () => {
-  // Estados
+  // Estados globales
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [currentView, setCurrentView] = useState('pedidos'); // 'pedidos' o 'cocina'
+  const [currentView, setCurrentView] = useState(() => localStorage.getItem('zulmapp-view') || 'pedidos');
   const [currentOrder, setCurrentOrder] = useState(null);
   const [stats, setStats] = useState({ totalOrders: 0, menuStats: {}, peopleList: [] });
   const [kitchenData, setKitchenData] = useState({ dishes: [], totalDishes: 0, totalPeople: 0 });
-  const [message, setMessage] = useState({ text: '', type: '' });
-  const [formLoading, setFormLoading] = useState(false);
   const [menuItems, setMenuItems] = useState([]);
-  const [autoUpdate, setAutoUpdate] = useState(true);
-  
-  // Estados del formulario - Solo 2 platos
   const [formData, setFormData] = useState({
     nombre: '',
     plato1: '',
     plato2: '',
     custom1: '',
-    custom2: ''
+    custom2: '',
   });
+  const [message, setMessage] = useState({ text: '', type: '' });
+  const [autoUpdate, setAutoUpdate] = useState(true);
+  const [formLoading, setFormLoading] = useState(false);
 
-  // Verificar sesión al cargar
+  // Persistir la vista seleccionada
   useEffect(() => {
-    getSession();
+    localStorage.setItem('zulmapp-view', currentView);
+  }, [currentView]);
+
+  // Mostrar mensaje durante 5 segundos
+  const showMessage = useCallback((text, type) => {
+    setMessage({ text, type });
+    setTimeout(() => setMessage({ text: '', type: '' }), 5000);
   }, []);
 
-  // Cargar datos cuando el usuario está autenticado
-  useEffect(() => {
-    if (user) {
-      loadMenu();
-      loadCurrentOrder();
-      loadStats();
-      loadKitchenData();
-    }
-  }, [user]);
-
-  // Auto-actualización cada 30 segundos
-  useEffect(() => {
-    if (user && autoUpdate && currentView === 'cocina') {
-      const interval = setInterval(() => {
-        loadKitchenData();
-      }, 30000); // 30 segundos
-
-      return () => clearInterval(interval);
-    }
-  }, [user, autoUpdate, currentView]);
-
-  const getSession = async () => {
+  // Obtener la sesión al cargar la app
+  const getSession = useCallback(async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user || null);
-    } catch (error) {
-      console.error('Error obteniendo sesión:', error);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
+    } catch (err) {
+      console.error('Error obteniendo sesión:', err);
+      showMessage('Error al obtener la sesión', 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [showMessage]);
 
-  const signInWithGoogle = async () => {
+  useEffect(() => {
+    getSession();
+  }, [getSession]);
+
+  // Iniciar sesión con Google
+  const signInWithGoogle = useCallback(async () => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: {
-          redirectTo: window.location.origin
-        }
+        options: { redirectTo: window.location.origin },
       });
       if (error) throw error;
-    } catch (error) {
-      showMessage('Error al iniciar sesión: ' + error.message, 'error');
+    } catch (err) {
+      showMessage(`Error al iniciar sesión: ${err.message}`, 'error');
     }
-  };
+  }, [showMessage]);
 
-  const signOut = async () => {
+  // Cerrar sesión
+  const signOut = useCallback(async () => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
@@ -91,267 +134,252 @@ const App = () => {
       setCurrentOrder(null);
       setStats({ totalOrders: 0, menuStats: {}, peopleList: [] });
       setKitchenData({ dishes: [], totalDishes: 0, totalPeople: 0 });
-    } catch (error) {
-      console.error('Error al cerrar sesión:', error);
+    } catch (err) {
+      console.error('Error al cerrar sesión:', err);
+      showMessage('Error al cerrar sesión', 'error');
     }
-  };
+  }, [showMessage]);
 
-  const apiCall = async (endpoint, options = {}) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        ...options.headers,
-      },
-    });
-
-    return response.json();
-  };
-
-  const loadMenu = async () => {
+  // Cargar el menú de platos
+  const loadMenu = useCallback(async () => {
     try {
       const result = await apiCall('/api/menu');
       if (result.success) {
         setMenuItems(result.menuItems);
       }
-    } catch (error) {
-      console.error('Error cargando menú:', error);
+    } catch (err) {
+      console.error('Error cargando menú:', err);
+      showMessage('Error cargando menú', 'error');
     }
-  };
+  }, [showMessage]);
 
-  const loadCurrentOrder = async () => {
+  // Cargar el pedido actual del usuario
+  const loadCurrentOrder = useCallback(async () => {
     try {
       const result = await apiCall('/api/pedidos/current');
       if (result.success && result.order) {
-        setCurrentOrder(result.order);
+        const order = result.order;
+        setCurrentOrder(order);
         setFormData({
-          nombre: result.order.nombre || '',
-          plato1: result.order.plato1 || '',
-          plato2: result.order.plato2 || '',
+          nombre: order.nombre || '',
+          plato1: order.plato1 || '',
+          plato2: order.plato2 || '',
           custom1: '',
-          custom2: ''
+          custom2: '',
         });
+      } else {
+        setCurrentOrder(null);
       }
-    } catch (error) {
-      console.error('Error cargando pedido actual:', error);
+    } catch (err) {
+      console.error('Error cargando pedido actual:', err);
+      showMessage('Error cargando pedido actual', 'error');
     }
-  };
+  }, [showMessage]);
 
-  const loadStats = async () => {
+  // Cargar estadísticas del backend
+  const loadStats = useCallback(async () => {
     try {
       const result = await apiCall('/api/stats');
       if (result.success) {
         setStats(result.stats);
       }
-    } catch (error) {
-      console.error('Error cargando estadísticas:', error);
+    } catch (err) {
+      console.error('Error cargando estadísticas:', err);
+      showMessage('Error cargando estadísticas', 'error');
     }
-  };
+  }, [showMessage]);
 
-  const loadKitchenData = async () => {
+  // Cargar datos de cocina (lista de platos ordenados cronológicamente)
+  const loadKitchenData = useCallback(async () => {
     try {
-      const result = await apiCall('/api/stats');
-      if (result.success) {
-        const stats = result.stats;
-        
-        // Obtener todos los pedidos para calcular orden de platos
-        const today = new Date().toISOString().split('T')[0];
-        const { data: pedidos, error } = await supabase
-          .from('pedidos')
-          .select('*')
-          .eq('fecha', today)
-          .order('timestamp', { ascending: true });
-
-        if (!error && pedidos) {
-          const allDishes = [];
-          
-          // Procesar todos los pedidos para obtener orden cronológico - Solo plato1 y plato2
-          pedidos.forEach(pedido => {
-            [pedido.plato1, pedido.plato2].forEach(plato => {
-              if (plato && plato.trim() !== '') {
-                allDishes.push({
-                  plato: plato.trim(),
-                  nombre: pedido.nombre,
-                  usuario: pedido.usuario,
-                  timestamp: pedido.timestamp
-                });
-              }
-            });
+      const [apiResult, pedidosResult] = await Promise.all([
+        apiCall('/api/stats'),
+        (async () => {
+          const today = new Date().toISOString().split('T')[0];
+          const { data: pedidos, error } = await supabase
+            .from('pedidos')
+            .select('*')
+            .eq('fecha', today)
+            .order('timestamp', { ascending: true });
+          if (error) throw error;
+          return pedidos;
+        })(),
+      ]);
+      if (apiResult.success) {
+        const statsRes = apiResult.stats;
+        const pedidos = pedidosResult || [];
+        const allDishes = [];
+        pedidos.forEach((pedido) => {
+          [pedido.plato1, pedido.plato2].forEach((plato) => {
+            if (plato && plato.trim()) {
+              allDishes.push({
+                plato: plato.trim(),
+                nombre: pedido.nombre,
+                usuario: pedido.usuario,
+                timestamp: pedido.timestamp,
+              });
+            }
           });
-
-          setKitchenData({
-            dishes: allDishes,
-            totalDishes: allDishes.length,
-            totalPeople: stats.totalOrders
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error cargando datos de cocina:', error);
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setFormLoading(true);
-
-    try {
-      const orderData = {
-        nombre: formData.nombre,
-        plato1: getRealPlatoValue(1),
-        plato2: getRealPlatoValue(2)
-      };
-
-      const result = await apiCall('/api/pedidos', {
-        method: 'POST',
-        body: JSON.stringify(orderData)
-      });
-
-      if (result.success) {
-        showMessage(result.message, 'success');
-        loadCurrentOrder();
-        loadStats();
-        loadKitchenData(); // Actualizar también datos de cocina
-      } else {
-        showMessage(result.message, 'error');
-      }
-    } catch (error) {
-      showMessage('Error al enviar pedido: ' + error.message, 'error');
-    } finally {
-      setFormLoading(false);
-    }
-  };
-
-  const cancelOrder = async () => {
-    if (!confirm('¿Estás seguro que querés cancelar tu pedido?\n\nEsta acción no se puede deshacer.')) {
-      return;
-    }
-
-    setFormLoading(true);
-    try {
-      const result = await apiCall('/api/pedidos/current', { method: 'DELETE' });
-      
-      if (result.success) {
-        showMessage(result.message, 'success');
-        setCurrentOrder(null);
-        setFormData({
-          nombre: '',
-          plato1: '',
-          plato2: '',
-          custom1: '',
-          custom2: ''
         });
-        loadStats();
-        loadKitchenData(); // Actualizar también datos de cocina
-      } else {
-        showMessage(result.message, 'error');
+        setKitchenData({
+          dishes: allDishes,
+          totalDishes: allDishes.length,
+          totalPeople: statsRes.totalOrders,
+        });
       }
-    } catch (error) {
-      showMessage('Error al cancelar pedido: ' + error.message, 'error');
-    } finally {
-      setFormLoading(false);
+    } catch (err) {
+      console.error('Error cargando datos de cocina:', err);
+      showMessage('Error cargando datos de cocina', 'error');
     }
-  };
+  }, [showMessage]);
 
-  const copyKitchenList = () => {
-    if (kitchenData.dishes.length === 0) {
-      alert('No hay platos para copiar');
-      return;
+  // Cargar datos cuando el usuario inicia sesión
+  useEffect(() => {
+    if (user) {
+      loadMenu();
+      loadCurrentOrder();
+      loadStats();
+      loadKitchenData();
     }
+  }, [user, loadMenu, loadCurrentOrder, loadStats, loadKitchenData]);
 
-    const listText = kitchenData.dishes
-      .map((dish, index) => `${index + 1}. ${dish.plato} - ${dish.nombre}`)
-      .join('\n');
+  // Auto actualización cada 30 s en vista de cocina
+  useEffect(() => {
+    if (!user || !autoUpdate || currentView !== 'cocina') return;
+    const interval = setInterval(loadKitchenData, 30000);
+    return () => clearInterval(interval);
+  }, [user, autoUpdate, currentView, loadKitchenData]);
 
-    const fullText = `🍽️ LISTA DE COCINA - ${new Date().toLocaleDateString('es-AR')}\n\n${listText}\n\nTotal: ${kitchenData.totalDishes} platos para ${kitchenData.totalPeople} personas`;
+  // Obtiene el plato real del formulario (maneja campos personalizados)
+  const getRealPlatoValue = useCallback(
+    (num) => {
+      const selectValue = formData[`plato${num}`];
+      const customValue = formData[`custom${num}`];
+      return selectValue === 'CUSTOM' ? customValue.trim() : selectValue;
+    },
+    [formData],
+  );
 
-    navigator.clipboard.writeText(fullText)
-      .then(() => {
-        showMessage('✅ Lista copiada al portapapeles', 'success');
-      })
-      .catch(() => {
-        alert('❌ No se pudo copiar la lista');
-      });
-  };
-
-  const getRealPlatoValue = (platoNumber) => {
-    const selectValue = formData[`plato${platoNumber}`];
-    const customValue = formData[`custom${platoNumber}`];
-    
-    if (selectValue === 'CUSTOM') {
-      return customValue.trim();
-    }
-    return selectValue;
-  };
-
-  const handlePlatoChange = (platoNumber, value) => {
-    setFormData(prev => ({
+  // Maneja cambio en seleccion de platos
+  const handlePlatoChange = useCallback((num, value) => {
+    setFormData((prev) => ({
       ...prev,
-      [`plato${platoNumber}`]: value,
-      [`custom${platoNumber}`]: value === 'CUSTOM' ? prev[`custom${platoNumber}`] : ''
+      [`plato${num}`]: value,
+      [`custom${num}`]: value === 'CUSTOM' ? prev[`custom${num}`] : '',
     }));
-  };
+  }, []);
 
-  const showMessage = (text, type) => {
-    setMessage({ text, type });
-    setTimeout(() => setMessage({ text: '', type: '' }), 5000);
-  };
+  // Enviar pedido
+  const handleSubmit = useCallback(
+    async (e) => {
+      e.preventDefault();
+      setFormLoading(true);
+      try {
+        const orderData = {
+          nombre: formData.nombre,
+          plato1: getRealPlatoValue(1),
+          plato2: getRealPlatoValue(2),
+        };
+        const result = await apiCall('/api/pedidos', {
+          method: 'POST',
+          body: JSON.stringify(orderData),
+        });
+        if (result.success) {
+          showMessage(result.message, 'success');
+          await loadCurrentOrder();
+          await loadStats();
+          await loadKitchenData();
+        } else {
+          showMessage(result.message, 'error');
+        }
+      } catch (err) {
+        showMessage(`Error al enviar pedido: ${err.message}`, 'error');
+      } finally {
+        setFormLoading(false);
+      }
+    },
+    [formData, getRealPlatoValue, showMessage, loadCurrentOrder, loadStats, loadKitchenData],
+  );
 
-const adminEmails = new Set([
-  "juliandanielpappalettera@gmail.com",
-  "leandro.binetti@gmail.com",
-  "alanpablomarino@gmail.com"
-]);
+  // Cancelar pedido
+  const cancelOrder = useCallback(
+    async () => {
+      if (
+        !window.confirm(
+          '¿Estás seguro que querés cancelar tu pedido?\n\nEsta acción no se puede deshacer.',
+        )
+      )
+        return;
+      setFormLoading(true);
+      try {
+        const result = await apiCall('/api/pedidos/current', { method: 'DELETE' });
+        if (result.success) {
+          showMessage(result.message, 'success');
+          setCurrentOrder(null);
+          setFormData({ nombre: '', plato1: '', plato2: '', custom1: '', custom2: '' });
+          await loadStats();
+          await loadKitchenData();
+        } else {
+          showMessage(result.message, 'error');
+        }
+      } catch (err) {
+        showMessage(`Error al cancelar pedido: ${err.message}`, 'error');
+      } finally {
+        setFormLoading(false);
+      }
+    },
+    [showMessage, loadStats, loadKitchenData],
+  );
 
-const isAdmin = () => {
-  return adminEmails.has(user?.email);
-};
-
-  const checkTimeRestriction = () => {
-    if (isAdmin()) return true;
-    
-    const now = new Date();
-    const argTime = new Date(now.toLocaleString("en-US", {timeZone: "America/Argentina/Buenos_Aires"}));
-    
-    const dayOfWeek = argTime.getDay();
-    const hour = argTime.getHours();
-    const minute = argTime.getMinutes();
-    
-    const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
-    const isInTimeRange = (hour === 7 || hour === 8 || hour === 9) || 
-                         (hour === 10 && minute <= 15);
-    
-    return isWeekday && isInTimeRange;
-  };
-
-  const copiarYActuar = () => {
-    if (!isAdmin() && !checkTimeRestriction()) {
-      alert("⏰ La app solo está disponible de lunes a viernes de 7:00 a 10:15 AM");
+  // Copiar lista de cocina al portapapeles
+  const copyKitchenList = useCallback(() => {
+    if (kitchenData.dishes.length === 0) {
+      window.alert('No hay platos para copiar');
       return;
     }
-    
-    const cvu = "0000003100093213450625";
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const isAndroid = /Android/i.test(navigator.userAgent);
-    
-    navigator.clipboard.writeText(cvu)
-      .then(() => {
-        if (isAndroid) {
-          alert("✅ CVU copiado. Vamos a abrir Mercado Pago...");
-          window.location.href = "intent://home#Intent;scheme=mercadopago;package=com.mercadopago.wallet;end";
-        } else if (isIOS) {
-          alert("✅ CVU copiado.\nAhora abrí la app de Mercado Pago y pegalo para hacer la transferencia.");
-        } else {
-          alert("✅ CVU copiado.\nAbrí tu app bancaria o Mercado Pago y pegalo para transferir.");
-        }
-      })
-      .catch(() => alert("❌ No se pudo copiar el CVU 😞"));
-  };
+    const listText = kitchenData.dishes
+      .map((dish, idx) => `${idx + 1}. ${dish.plato} - ${dish.nombre}`)
+      .join('\n');
+    const fullText = `🍽️ LISTA DE COCINA - ${new Date().toLocaleDateString('es-AR')}\n\n${listText}\n\nTotal: ${kitchenData.totalDishes} platos para ${kitchenData.totalPeople} personas`;
+    navigator.clipboard
+      .writeText(fullText)
+      .then(() => showMessage('✅ Lista copiada al portapapeles', 'success'))
+      .catch(() => window.alert('❌ No se pudo copiar la lista'));
+  }, [kitchenData, showMessage]);
 
+  // Copiar CVU y abrir Mercado Pago / App bancaria
+  const copiarYActuar = useCallback(
+    () => {
+      if (!isAdminUser(user) && !isWithinOrderTime()) {
+        window.alert('⏰ La app solo está disponible de lunes a viernes de 7:00 a 10:15 AM');
+        return;
+      }
+      const cvu = '0000003100093213450625';
+      const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const isAndroid = /Android/i.test(navigator.userAgent);
+      navigator.clipboard
+        .writeText(cvu)
+        .then(() => {
+          if (isAndroid) {
+            window.alert('✅ CVU copiado. Vamos a abrir Mercado Pago...');
+            window.location.href =
+              'intent://home#Intent;scheme=mercadopago;package=com.mercadopago.wallet;end';
+          } else if (isIOS) {
+            window.alert(
+              '✅ CVU copiado.\nAhora abrí la app de Mercado Pago y pegalo para hacer la transferencia.',
+            );
+          } else {
+            window.alert(
+              '✅ CVU copiado.\nAbrí tu app bancaria o Mercado Pago y pegalo para transferir.',
+            );
+          }
+        })
+        .catch(() => window.alert('❌ No se pudo copiar el CVU 😞'));
+    },
+    [user],
+  );
+
+  // Render: pantalla de carga
   if (loading) {
     return (
       <div className="loading-screen">
@@ -361,211 +389,206 @@ const isAdmin = () => {
     );
   }
 
-  // Pantalla de login - SIN palabra clave
+  // Render: pantalla de login
   if (!user) {
     return (
       <div className="login-screen">
-        <div className="container">
-          <div className="header">
-            <h1>🍽️ Zulmapp</h1>
-            <p>Sistema de pedidos de comida</p>
-          </div>
-          <div className="login-content">
-            <p>Iniciá sesión con tu cuenta de Google para hacer tu pedido</p>
-            <button onClick={signInWithGoogle} className="btn login-btn">
-              🔐 Iniciar sesión con Google
-            </button>
-          </div>
+        <div className="login-content">
+          <h1>🍽️ Zulmapp</h1>
+          <p>Sistema de pedidos de comida</p>
+          <p>Iniciá sesión con tu cuenta de Google para hacer tu pedido</p>
+          <button className="btn login-btn" onClick={signInWithGoogle}>
+            🔐 Iniciar sesión con Google
+          </button>
         </div>
       </div>
     );
   }
 
-  const timeAllowed = checkTimeRestriction();
-  const currentTime = new Date().toLocaleString('es-AR', {timeZone: 'America/Argentina/Buenos_Aires'});
+  // Información de hora actual
+  const currentTime = new Date().toLocaleString('es-AR', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+  });
+  const timeAllowed = isAdminUser(user) || isWithinOrderTime();
 
-  // VISTA DE DISPLAY DE COCINA
+  // Render: vista de cocina
   if (currentView === 'cocina') {
     return (
       <div className="container">
-        <div className="header">
+        <header className="header">
           <h1>🍽️ Display de Cocina</h1>
-          <div className="kitchen-info">
-            <strong>📅 {new Date().toLocaleDateString('es-AR', { 
-              weekday: 'long', 
-              day: 'numeric', 
-              month: 'long', 
-              year: 'numeric' 
-            })} - {currentTime}</strong>
-            <div className="kitchen-stats">
+          <p>
+            {new Date().toLocaleDateString('es-AR', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+            })}{' '}
+            - {currentTime}
+          </p>
+          <div className="kitchen-stats">
+            <div>
               <span className="stat-number">{kitchenData.totalDishes}</span>
               <span className="stat-label">Platos</span>
+            </div>
+            <div>
               <span className="stat-number">{kitchenData.totalPeople}</span>
               <span className="stat-label">Personas</span>
             </div>
           </div>
-        </div>
-
+        </header>
         <div className="kitchen-controls">
-          <button onClick={loadKitchenData} className="btn kitchen-btn">
+          <button className="kitchen-btn" onClick={loadKitchenData}>
             🔄 Actualizar
           </button>
-          <button onClick={copyKitchenList} className="btn kitchen-btn success">
+          <button className="kitchen-btn" onClick={copyKitchenList}>
             📋 Copiar Lista
           </button>
           <label className="auto-update-toggle">
-            <input 
-              type="checkbox" 
+            <input
+              type="checkbox"
               checked={autoUpdate}
               onChange={(e) => setAutoUpdate(e.target.checked)}
             />
             Auto-actualizar
           </label>
-          <button 
-            onClick={() => setCurrentView('pedidos')} 
-            className="btn kitchen-btn secondary"
-          >
+          <button className="kitchen-btn secondary" onClick={() => setCurrentView('pedidos')}>
             👤 Ver Pedidos
           </button>
         </div>
-
         {message.text && (
           <div className={`message ${message.type}`}>
             {message.text}
           </div>
         )}
-
         <div className="kitchen-display">
           {kitchenData.dishes.length === 0 ? (
             <div className="no-dishes">
               <div className="empty-icon">🍽️</div>
-              <h3>No hay platos registrados para hoy</h3>
+              <p>No hay platos registrados para hoy</p>
               <p>Última actualización: {currentTime.split(',')[1]}</p>
             </div>
           ) : (
-            <div className="dishes-list">
+            <ul className="dishes-list">
               {kitchenData.dishes.map((dish, index) => (
-                <div key={index} className="dish-item">
+                <li key={`${dish.plato}-${index}`} className="dish-item">
                   <div className="dish-number">{index + 1}</div>
                   <div className="dish-details">
-                    <div className="dish-name">{dish.plato}</div>
-                    <div className="dish-person">{dish.nombre}</div>
+                    <span className="dish-name">{dish.plato}</span>
+                    <span className="dish-person">{dish.nombre}</span>
                   </div>
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
         </div>
       </div>
     );
   }
 
-  // VISTA PRINCIPAL DE PEDIDOS
+  // Render: vista principal de pedidos
   return (
     <div className="container">
-      <div className="header">
+      <header className="header">
         <h1>🍽️ Zulmapp</h1>
-        <div className="user-info">
-          <strong>👤 Usuario:</strong> {user.user_metadata?.name || user.email} ({user.email})
+      </header>
+      <div className="user-info">
+        <p>
+          👤 Usuario: {user.user_metadata?.name || user.email} ({user.email})
+        </p>
+        <p>📅 Fecha: {new Date().toLocaleDateString('es-AR')}</p>
+        <p>🕐 Hora: {currentTime}</p>
+        <button className="btn-link" onClick={signOut}>
+          🚪 Cerrar sesión
+        </button>
+        <button className="btn-link" onClick={() => setCurrentView('cocina')}>
+          🍽️ Display de Cocina
+        </button>
+      </div>
+      {isAdminUser(user) ? (
+        <div className="admin-mode time-info">
+          👑 MODO ADMINISTRADOR - Acceso total sin restricciones
           <br />
-          <strong>📅 Fecha:</strong> {new Date().toLocaleDateString('es-AR')}
-          <br />
-          <strong>🕐 Hora:</strong> {currentTime}
-          <br />
-          <button onClick={signOut} className="btn-link">
-            🚪 Cerrar sesión
-          </button>
-          <br />
-          <button onClick={() => setCurrentView('cocina')} className="btn-link">
-            🍽️ Display de Cocina
-          </button>
+          Hora actual: {currentTime}
         </div>
-      </div>
-
-      {/* Control de horarios */}
-      <div className="time-status">
-        {isAdmin() ? (
-          <div className="time-info admin-mode">
-            👑 MODO ADMINISTRADOR - Acceso total sin restricciones
-            <br />
-            <small>Hora actual: {currentTime}</small>
-          </div>
-        ) : timeAllowed ? (
-          <div className="time-info">
-            ✅ App disponible - Podés hacer tu pedido
-          </div>
-        ) : (
-          <div className="time-restriction">
-            ⏰ La app solo está disponible de lunes a viernes de 7:00 a 10:15 AM
-            <br />
-            <small>Hora actual: {currentTime}</small>
-          </div>
-        )}
-      </div>
-
-      <div className={`form-container ${!timeAllowed && !isAdmin() ? 'disabled-overlay' : ''}`}>
-        {message.text && (
-          <div className={`message ${message.type}`}>
-            {message.text}
-          </div>
-        )}
-
-        {/* Pedido actual */}
-        {currentOrder && (
-          <div className="current-order">
-            <h3>📋 Tu Pedido Actual</h3>
-            <div style={{ marginBottom: '10px' }}>
-              <strong>👤 Nombre:</strong> {currentOrder.nombre}
+      ) : timeAllowed ? (
+        <div className="time-info">
+          ✅ App disponible - Podés hacer tu pedido
+          <br />
+          Hora actual: {currentTime}
+        </div>
+      ) : (
+        <div className="time-restriction">
+          ⏰ La app solo está disponible de lunes a viernes de 7:00 a 10:15 AM
+          <br />
+          Hora actual: {currentTime}
+        </div>
+      )}
+      {message.text && (
+        <div className={`message ${message.type}`}>
+          {message.text}
+        </div>
+      )}
+      {currentOrder && (
+        <div className="current-order">
+          <h3>📋 Tu Pedido Actual</h3>
+          <p>👤 Nombre: {currentOrder.nombre}</p>
+          <ul className="dish-list">
+            {currentOrder.plato1 && <li>{currentOrder.plato1}</li>}
+            {currentOrder.plato2 && <li>{currentOrder.plato2}</li>}
+          </ul>
+          {currentOrder.dishNumbers && currentOrder.dishNumbers.length > 0 && (
+            <div className="dish-numbers-info">
+              🔢{' '}
+              {currentOrder.dishNumbers.length === 1
+                ? 'Tu plato en la cocina:'
+                : 'Tus platos en la cocina:'}{' '}
+              {currentOrder.dishNumbers.length === 1
+                ? `Número ${currentOrder.dishNumbers[0]}`
+                : `Números ${currentOrder.dishNumbers.join(', ')}`}
             </div>
-            <ul className="dish-list">
-              {currentOrder.plato1 && <li>{currentOrder.plato1}</li>}
-              {currentOrder.plato2 && <li>{currentOrder.plato2}</li>}
-            </ul>
-            {currentOrder.dishNumbers && currentOrder.dishNumbers.length > 0 && (
-              <div className="dish-numbers-info">
-                <strong>🔢 {currentOrder.dishNumbers.length === 1 ? 'Tu plato en la cocina:' : 'Tus platos en la cocina:'}</strong>{' '}
-                {currentOrder.dishNumbers.length === 1 
-                  ? `Número ${currentOrder.dishNumbers[0]}`
-                  : `Números ${currentOrder.dishNumbers.join(', ')}`
-                }
-              </div>
-            )}
-            <p><small>💡 Puedes modificar tu pedido enviando el formulario nuevamente</small></p>
-          </div>
-        )}
-
-        {formLoading ? (
-          <div className="loading">
-            <div className="spinner"></div>
-            <p>Procesando pedido...</p>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit}>
-            {/* Campo nombre */}
+          )}
+          <small>💡 Puedes modificar tu pedido enviando el formulario nuevamente</small>
+        </div>
+      )}
+      {formLoading ? (
+        <div className="loading">
+          <div className="spinner"></div>
+          <p>Procesando pedido...</p>
+        </div>
+      ) : (
+        <form className={timeAllowed ? '' : 'disabled-overlay'} onSubmit={handleSubmit}>
+          <div className="form-container">
             <div className="form-group">
-              <label htmlFor="nombre">👤 Tu Nombre *</label>
+              <label>
+                👤 Tu Nombre <span>*</span>
+              </label>
               <input
                 type="text"
-                id="nombre"
                 value={formData.nombre}
-                onChange={(e) => setFormData(prev => ({ ...prev, nombre: e.target.value }))}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, nombre: e.target.value }))
+                }
                 placeholder="Escribe tu nombre completo..."
                 required
+                disabled={!timeAllowed}
               />
             </div>
-
-            {/* Plato 1 */}
             <div className="form-group">
-              <label htmlFor="plato1">🍽️ Plato Principal *</label>
+              <label>
+                🍽️ Plato Principal <span>*</span>
+              </label>
               <select
-                id="plato1"
                 value={formData.plato1}
                 onChange={(e) => handlePlatoChange(1, e.target.value)}
                 required
+                disabled={!timeAllowed}
               >
                 <option value="">Seleccionar plato...</option>
                 {menuItems.map((item, index) => (
-                  <option key={index} value={item}>{item}</option>
+                  <option key={`plato1-${index}`} value={item}>
+                    {item}
+                  </option>
                 ))}
                 <option value="CUSTOM">📝 Escribir otro plato...</option>
               </select>
@@ -573,24 +596,27 @@ const isAdmin = () => {
                 <input
                   type="text"
                   value={formData.custom1}
-                  onChange={(e) => setFormData(prev => ({ ...prev, custom1: e.target.value }))}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, custom1: e.target.value }))
+                  }
                   placeholder="Escribe tu plato personalizado..."
                   required
+                  disabled={!timeAllowed}
                 />
               )}
             </div>
-
-            {/* Plato 2 */}
             <div className="form-group">
-              <label htmlFor="plato2">🍽️ Segundo Plato (Opcional)</label>
+              <label>🍽️ Segundo Plato (Opcional)</label>
               <select
-                id="plato2"
                 value={formData.plato2}
                 onChange={(e) => handlePlatoChange(2, e.target.value)}
+                disabled={!timeAllowed}
               >
                 <option value="">Sin segundo plato</option>
                 {menuItems.map((item, index) => (
-                  <option key={index} value={item}>{item}</option>
+                  <option key={`plato2-${index}`} value={item}>
+                    {item}
+                  </option>
                 ))}
                 <option value="CUSTOM">📝 Escribir otro plato...</option>
               </select>
@@ -598,71 +624,66 @@ const isAdmin = () => {
                 <input
                   type="text"
                   value={formData.custom2}
-                  onChange={(e) => setFormData(prev => ({ ...prev, custom2: e.target.value }))}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, custom2: e.target.value }))
+                  }
                   placeholder="Escribe tu plato personalizado..."
+                  disabled={!timeAllowed}
                 />
               )}
             </div>
-
-            <button type="submit" className="btn">
+            <button className="btn" type="submit" disabled={!timeAllowed}>
               {currentOrder ? '✏️ Actualizar Pedido' : '📝 Enviar Pedido'}
             </button>
-
             {currentOrder && (
               <button
-                type="button"
                 className="btn cancel-btn"
+                type="button"
                 onClick={cancelOrder}
+                disabled={!timeAllowed}
               >
                 🗑️ Cancelar Pedido
               </button>
             )}
-          </form>
-        )}
-
-        {/* Botón transferencia */}
-        <button onClick={copiarYActuar} className="btn transfer-btn">
-          📋 Copiar CVU y continuar
-        </button>
-      </div>
-
-      {/* Estadísticas */}
-      <div className={`stats-container ${!timeAllowed && !isAdmin() ? 'disabled-overlay' : ''}`}>
-        <div className="stats-title">📊 Estadísticas del Día</div>
-        <div className="stats-grid">
-          <div className="stat-item">
-            <h4>📊 Total de Pedidos</h4>
-            <h2 style={{ color: '#667eea' }}>{stats.totalOrders}</h2>
           </div>
-
-          {Object.keys(stats.menuStats).length > 0 && (
-            <div className="stat-item">
-              <h4>🏆 Platos Más Pedidos</h4>
+        </form>
+      )}
+      <button className="btn transfer-btn" onClick={copiarYActuar}>
+        📋 Copiar CVU y continuar
+      </button>
+      <div className="stats-container">
+        <h3 className="stats-title">📊 Estadísticas del Día</h3>
+        <p>
+          📊 Total de Pedidos: {stats.totalOrders}
+        </p>
+        {Object.keys(stats.menuStats).length > 0 && (
+          <div className="stat-item">
+            <h4>🏆 Platos Más Pedidos</h4>
+            <ul>
               {Object.entries(stats.menuStats)
                 .sort((a, b) => b[1] - a[1])
                 .slice(0, 5)
                 .map(([dish, count]) => (
-                  <div key={dish} style={{ margin: '5px 0' }}>
-                    <strong>{dish}</strong>: {count} pedidos
-                  </div>
+                  <li key={dish}>
+                    {dish}: {count} pedidos
+                  </li>
                 ))}
-            </div>
-          )}
-
-          {stats.peopleList.length > 0 && (
-            <div className="stat-item">
-              <h4>👥 Personas que han pedido</h4>
-              <div className="people-list">
-                {stats.peopleList.map((person, index) => (
-                  <div key={index} className="people-item">
-                    <strong>{person.nombre}</strong><br />
-                    <small>{person.usuario} - {new Date(person.timestamp).toLocaleTimeString('es-ES')}</small>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+            </ul>
+          </div>
+        )}
+        {stats.peopleList.length > 0 && (
+          <div className="stat-item">
+            <h4>👥 Personas que han pedido</h4>
+            <ul className="people-list">
+              {stats.peopleList.map((person, index) => (
+                <li key={`person-${index}`} className="people-item">
+                  <strong>{person.nombre}</strong> {person.usuario} -{' '}
+                  {new Date(person.timestamp).toLocaleTimeString('es-ES')}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   );
