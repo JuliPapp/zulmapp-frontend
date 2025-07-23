@@ -10,7 +10,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // API backend
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-// Correos de admin configurables por variable de entorno (separados por coma)
+// Correos de admin configurables (separados por coma)
 const ADMIN_EMAILS = (
   import.meta.env.VITE_ADMIN_EMAILS ||
   'juliandanielpappalettera@gmail.com,leandro.binetti@gmail.com,alanpablomarino@gmail.com'
@@ -19,14 +19,10 @@ const ADMIN_EMAILS = (
   .map((e) => e.trim())
   .filter(Boolean);
 
-/**
- * Verifica si un usuario es administrador.
- */
+// Verifica si un usuario es administrador
 const isAdminUser = (user) => ADMIN_EMAILS.includes(user?.email);
 
-/**
- * Verifica si la hora actual está dentro del horario de pedidos (7:00–10:15 AM, lunes a viernes).
- */
+// Verifica si la hora está dentro de 14:00–10:15 (cerrado entre 10:15 y 14:00)
 const isWithinOrderTime = () => {
   const now = new Date();
   const argTime = new Date(
@@ -38,13 +34,12 @@ const isWithinOrderTime = () => {
   const hour = argTime.getHours();
   const minute = argTime.getMinutes();
   const weekday = day >= 1 && day <= 5;
-  const inRange = (hour >= 7 && hour < 10) || (hour === 10 && minute <= 15);
+  // abierto si la hora es >=14 o <10, o si son las 10 con minuto <=15
+  const inRange = hour >= 14 || hour < 10 || (hour === 10 && minute <= 15);
   return weekday && inRange;
 };
 
-/**
- * Envía una solicitud autenticada al backend usando el token de Supabase.
- */
+// Llamada autenticada a la API
 const apiCall = async (endpoint, options = {}) => {
   const {
     data: { session },
@@ -63,7 +58,7 @@ const apiCall = async (endpoint, options = {}) => {
 };
 
 const App = () => {
-  // Estados globales
+  // Estados principales
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentView, setCurrentView] = useState(() => localStorage.getItem('zulmapp-view') || 'pedidos');
@@ -82,18 +77,18 @@ const App = () => {
   const [autoUpdate, setAutoUpdate] = useState(true);
   const [formLoading, setFormLoading] = useState(false);
 
-  // Persistir la vista seleccionada
+  // Persistencia de vista
   useEffect(() => {
     localStorage.setItem('zulmapp-view', currentView);
   }, [currentView]);
 
-  // Mostrar mensaje durante 5 segundos
+  // Mostrar mensajes temporales
   const showMessage = useCallback((text, type) => {
     setMessage({ text, type });
     setTimeout(() => setMessage({ text: '', type: '' }), 5000);
   }, []);
 
-  // Obtener la sesión al cargar la app
+  // Obtener sesión al iniciar
   const getSession = useCallback(async () => {
     try {
       const {
@@ -140,7 +135,7 @@ const App = () => {
     }
   }, [showMessage]);
 
-  // Cargar el menú de platos
+  // Cargar menú
   const loadMenu = useCallback(async () => {
     try {
       const result = await apiCall('/api/menu');
@@ -153,7 +148,7 @@ const App = () => {
     }
   }, [showMessage]);
 
-  // Cargar el pedido actual del usuario
+  // Cargar pedido actual
   const loadCurrentOrder = useCallback(async () => {
     try {
       const result = await apiCall('/api/pedidos/current');
@@ -176,7 +171,7 @@ const App = () => {
     }
   }, [showMessage]);
 
-  // Cargar estadísticas del backend
+  // Cargar estadísticas
   const loadStats = useCallback(async () => {
     try {
       const result = await apiCall('/api/stats');
@@ -189,7 +184,7 @@ const App = () => {
     }
   }, [showMessage]);
 
-  // Cargar datos de cocina (lista de platos ordenados cronológicamente)
+  // Cargar datos de cocina
   const loadKitchenData = useCallback(async () => {
     try {
       const [apiResult, pedidosResult] = await Promise.all([
@@ -233,7 +228,7 @@ const App = () => {
     }
   }, [showMessage]);
 
-  // Cargar datos cuando el usuario inicia sesión
+  // Cargar datos al iniciar sesión
   useEffect(() => {
     if (user) {
       loadMenu();
@@ -243,14 +238,14 @@ const App = () => {
     }
   }, [user, loadMenu, loadCurrentOrder, loadStats, loadKitchenData]);
 
-  // Auto actualización cada 30 s en vista de cocina
+  // Auto actualización para la vista de cocina
   useEffect(() => {
     if (!user || !autoUpdate || currentView !== 'cocina') return;
     const interval = setInterval(loadKitchenData, 30000);
     return () => clearInterval(interval);
   }, [user, autoUpdate, currentView, loadKitchenData]);
 
-  // Obtiene el plato real del formulario (maneja campos personalizados)
+  // Obtener valor real de plato (custom vs selección)
   const getRealPlatoValue = useCallback(
     (num) => {
       const selectValue = formData[`plato${num}`];
@@ -260,7 +255,7 @@ const App = () => {
     [formData],
   );
 
-  // Maneja cambio en seleccion de platos
+  // Manejar cambios de plato
   const handlePlatoChange = useCallback((num, value) => {
     setFormData((prev) => ({
       ...prev,
@@ -331,7 +326,7 @@ const App = () => {
     [showMessage, loadStats, loadKitchenData],
   );
 
-  // Copiar lista de cocina al portapapeles
+  // Copiar lista de cocina
   const copyKitchenList = useCallback(() => {
     if (kitchenData.dishes.length === 0) {
       window.alert('No hay platos para copiar');
@@ -347,11 +342,11 @@ const App = () => {
       .catch(() => window.alert('❌ No se pudo copiar la lista'));
   }, [kitchenData, showMessage]);
 
-  // Copiar CVU y abrir Mercado Pago / App bancaria
+  // Copiar CVU y abrir apps de pago
   const copiarYActuar = useCallback(
     () => {
       if (!isAdminUser(user) && !isWithinOrderTime()) {
-        window.alert('⏰ La app solo está disponible de lunes a viernes de 7:00 a 10:15 AM');
+        window.alert('⏰ La app solo está disponible de lunes a viernes de 14:00 a 10:15');
         return;
       }
       const cvu = '0000003100093213450625';
@@ -379,7 +374,7 @@ const App = () => {
     [user],
   );
 
-  // Render: pantalla de carga
+  // Pantalla de carga
   if (loading) {
     return (
       <div className="loading-screen">
@@ -389,7 +384,7 @@ const App = () => {
     );
   }
 
-  // Render: pantalla de login
+  // Pantalla de login
   if (!user) {
     return (
       <div className="login-screen">
@@ -411,7 +406,7 @@ const App = () => {
   });
   const timeAllowed = isAdminUser(user) || isWithinOrderTime();
 
-  // Render: vista de cocina
+  // Vista de cocina
   if (currentView === 'cocina') {
     return (
       <div className="container">
@@ -456,11 +451,7 @@ const App = () => {
             👤 Ver Pedidos
           </button>
         </div>
-        {message.text && (
-          <div className={`message ${message.type}`}>
-            {message.text}
-          </div>
-        )}
+        {message.text && <div className={`message ${message.type}`}>{message.text}</div>}
         <div className="kitchen-display">
           {kitchenData.dishes.length === 0 ? (
             <div className="no-dishes">
@@ -486,7 +477,7 @@ const App = () => {
     );
   }
 
-  // Render: vista principal de pedidos
+  // Vista de pedidos
   return (
     <div className="container">
       <header className="header">
@@ -519,7 +510,7 @@ const App = () => {
         </div>
       ) : (
         <div className="time-restriction">
-          ⏰ La app solo está disponible de lunes a viernes de 7:00 a 10:15 AM
+          ⏰ La app solo está disponible de lunes a viernes de 14:00 a 10:15
           <br />
           Hora actual: {currentTime}
         </div>
@@ -633,7 +624,7 @@ const App = () => {
               )}
             </div>
             <button className="btn" type="submit" disabled={!timeAllowed}>
-              {currentOrder ? '🔃 Actualizar Pedido' : '✅ Enviar Pedido'}
+              {currentOrder ? '✏️ Actualizar Pedido' : '📝 Enviar Pedido'}
             </button>
             {currentOrder && (
               <button
@@ -649,13 +640,11 @@ const App = () => {
         </form>
       )}
       <button className="btn transfer-btn" onClick={copiarYActuar}>
-        Copiar CVU
+        📋 Copiar CVU y continuar
       </button>
       <div className="stats-container">
         <h3 className="stats-title">📊 Estadísticas del Día</h3>
-        <p>
-          📊 Total de Pedidos: {stats.totalOrders}
-        </p>
+        <p>📊 Total de Pedidos: {stats.totalOrders}</p>
         {Object.keys(stats.menuStats).length > 0 && (
           <div className="stat-item">
             <h4>🏆 Platos Más Pedidos</h4>
