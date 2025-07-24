@@ -214,6 +214,7 @@ const App = () => {
   }, [showMessage]);
 
   // Cargar datos de cocina
+// Cargar datos de cocina
 const loadKitchenData = useCallback(async () => {
   try {
     // Llamamos a la API de stats y a la tabla de pedidos en paralelo
@@ -237,9 +238,9 @@ const loadKitchenData = useCallback(async () => {
       const pedidos = pedidosResult || [];
       const allDishes = [];
 
-      // Recorremos plato1, plato2 y plato3 para no dejar ninguno afuera
+      // Recorremos solo plato1 y plato2 (plato3 ya no se usa)
       pedidos.forEach((pedido) => {
-        [pedido.plato1, pedido.plato2, pedido.plato3].forEach((plato) => {
+        [pedido.plato1, pedido.plato2].forEach((plato) => {
           if (plato && plato.trim()) {
             allDishes.push({
               plato: plato.trim(),
@@ -263,6 +264,7 @@ const loadKitchenData = useCallback(async () => {
     showMessage('Error cargando datos de cocina', 'error');
   }
 }, [showMessage]);
+
 
 
   // Cargar datos al iniciar sesión
