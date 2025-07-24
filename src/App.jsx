@@ -8,27 +8,18 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Calcula la fecha del ciclo según la hora de Buenos Aires.
-// CORREGIDO: Para evitar problemas de timezone, busca pedidos de las últimas 24 horas
+// Si ya son las 14:00 o más, devuelve la fecha de mañana; si no, devuelve la de hoy.
 const getCycleDate = () => {
   const ahoraEnBA = new Date(
     new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' })
   );
-  // Devuelve la fecha actual para buscar pedidos de hoy
+  const hora = ahoraEnBA.getHours();
+  if (hora >= 14) {
+    const mañana = new Date(ahoraEnBA);
+    mañana.setDate(ahoraEnBA.getDate() + 1);
+    return mañana.toISOString().split('T')[0];
+  }
   return ahoraEnBA.toISOString().split('T')[0];
-};
-
-// Nueva función para obtener también la fecha de ayer (por si acaso)
-const getDateRange = () => {
-  const ahoraEnBA = new Date(
-    new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' })
-  );
-  const ayer = new Date(ahoraEnBA);
-  ayer.setDate(ahoraEnBA.getDate() - 1);
-  
-  return {
-    today: ahoraEnBA.toISOString().split('T')[0],
-    yesterday: ayer.toISOString().split('T')[0]
-  };
 };
 
 // API backend
@@ -223,14 +214,9 @@ const App = () => {
     }
   }, [showMessage]);
 
-  // Cargar datos de cocina - CORREGIDO: Manejo robusto de timezones
+  // Cargar datos de cocina - AHORA funciona perfectamente con el backend corregido
   const loadKitchenData = useCallback(async () => {
     try {
-      const dateRange = getDateRange();
-      console.log('📅 Buscando pedidos para hoy:', dateRange.today);
-      console.log('📅 También ayer por si acaso:', dateRange.yesterday);
-      console.log('🕐 Hora actual en BA:', new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }));
-      
       console.log('🔄 Cargando datos de cocina desde /api/stats...');
       const result = await apiCall('/api/stats');
       console.log('📊 Respuesta del backend:', result);
@@ -241,42 +227,22 @@ const App = () => {
 
         console.log('👥 PeopleList recibida:', statsRes.peopleList);
 
-        // Construir lista de platos desde peopleList
+        // Construir lista de platos desde peopleList (que ahora SÍ incluye los platos)
         if (statsRes.peopleList && statsRes.peopleList.length > 0) {
-          // Filtramos pedidos de las últimas 24 horas para ser más permisivos
-          const ahora = new Date();
-          const hace24h = new Date(ahora.getTime() - (24 * 60 * 60 * 1000));
-          
           statsRes.peopleList.forEach((pedido) => {
             console.log('🍽️ Procesando pedido:', pedido);
-            console.log('📅 Fecha del pedido en DB:', pedido.fecha || 'NO HAY CAMPO FECHA');
-            console.log('🕐 Timestamp del pedido:', pedido.timestamp);
             
-            // Verificamos si el pedido es reciente (últimas 24h)
-            let esPedidoReciente = true;
-            if (pedido.timestamp) {
-              const fechaPedido = new Date(pedido.timestamp);
-              esPedidoReciente = fechaPedido >= hace24h;
-              console.log('⏰ ¿Es pedido reciente?', esPedidoReciente, 'Fecha pedido:', fechaPedido.toLocaleString('es-AR'));
-            }
-            
-            if (esPedidoReciente) {
-              [pedido.plato1, pedido.plato2].forEach((plato) => {
-                if (plato && plato.trim()) {
-                  console.log('✅ Agregando plato:', plato);
-                  allDishes.push({
-                    plato: plato.trim(),
-                    nombre: pedido.nombre,
-                    usuario: pedido.usuario,
-                    timestamp: pedido.timestamp,
-                  });
-                } else {
-                  console.log('❌ Plato vacío o nulo:', plato);
-                }
-              });
-            } else {
-              console.log('🗓️ Pedido muy antiguo, omitiendo');
-            }
+            [pedido.plato1, pedido.plato2, pedido.plato3].forEach((plato) => {
+              if (plato && plato.trim()) {
+                console.log('✅ Agregando plato:', plato, 'de', pedido.nombre);
+                allDishes.push({
+                  plato: plato.trim(),
+                  nombre: pedido.nombre,
+                  usuario: pedido.usuario,
+                  timestamp: pedido.timestamp,
+                });
+              }
+            });
           });
         } else {
           console.log('❌ No hay peopleList o está vacía');
@@ -288,7 +254,7 @@ const App = () => {
         setKitchenData({
           dishes: allDishes,
           totalDishes: allDishes.length,
-          totalPeople: allDishes.length > 0 ? statsRes.totalOrders : 0,
+          totalPeople: statsRes.totalOrders,
         });
       } else {
         console.error('❌ Backend devolvió success: false');
@@ -749,22 +715,10 @@ const App = () => {
               {stats.peopleList.map((person, index) => (
                 <li key={`person-${index}`} className="people-item">
                   <strong>{person.nombre}</strong> {person.usuario} -{' '}
-                  {(() => {
-                    try {
-                      const fecha = new Date(person.timestamp);
-                      // Si la fecha parece correcta, la mostramos
-                      if (fecha.getFullYear() > 2020) {
-                        return fecha.toLocaleTimeString('es-AR', {
-                          timeZone: 'America/Argentina/Buenos_Aires',
-                          hour12: false
-                        });
-                      } else {
-                        return 'Hora inválida';
-                      }
-                    } catch (e) {
-                      return 'Hora inválida';
-                    }
-                  })()}
+                  {new Date(person.timestamp).toLocaleTimeString('es-AR', {
+                    timeZone: 'America/Argentina/Buenos_Aires',
+                    hour12: false
+                  })}
                 </li>
               ))}
             </ul>
