@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import './App.css';
@@ -14,26 +15,13 @@ const getCycleDate = () => {
     new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' })
   );
   const hora = ahoraEnBA.getHours();
-  const minutos = ahoraEnBA.getMinutes();
-
-  // Si es antes de las 10:15, usamos el día anterior
-  if (hora < 10 || (hora === 10 && minutos < 15)) {
-    const ayer = new Date(ahoraEnBA);
-    ayer.setDate(ayer.getDate() - 1);
-    return ayer.toISOString().split('T')[0];
-  }
-
-  // Si es después de las 14:00, usamos el día siguiente
   if (hora >= 14) {
     const mañana = new Date(ahoraEnBA);
-    mañana.setDate(mañana.getDate() + 1);
+    mañana.setDate(ahoraEnBA.getDate() + 1);
     return mañana.toISOString().split('T')[0];
   }
-
-  // Si está entre 10:15 y 14:00, usamos hoy
   return ahoraEnBA.toISOString().split('T')[0];
 };
-
 
 
 // API backend
