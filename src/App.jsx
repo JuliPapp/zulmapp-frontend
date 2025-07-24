@@ -23,7 +23,7 @@ const getCycleDate = () => {
 };
 
 // API backend
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL || 'https://zulmapp-backend.onrender.com';
 
 // Correos de admin configurables (separados por coma)
 const ADMIN_EMAILS = (
