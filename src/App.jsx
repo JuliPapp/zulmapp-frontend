@@ -23,7 +23,7 @@ const getCycleDate = () => {
 };
 
 // API backend
-const API_URL = import.meta.env.VITE_API_URL || 'https://zulmapp-backend.onrender.com';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 // Correos de admin configurables (separados por coma)
 const ADMIN_EMAILS = (
@@ -217,50 +217,47 @@ const App = () => {
   // Cargar datos de cocina - CORREGIDO: Solo usa el backend
   const loadKitchenData = useCallback(async () => {
     try {
-      // Intentamos usar la ruta de cocina si existe, sino fallback a stats
-      let kitchenResult;
-      try {
-        kitchenResult = await apiCall('/api/kitchen');
-      } catch (kitchenError) {
-        console.warn('Ruta /api/kitchen no disponible, usando /api/stats');
-        kitchenResult = await apiCall('/api/stats');
-      }
+      console.log('🔄 Cargando datos de cocina desde /api/stats...');
+      const result = await apiCall('/api/stats');
+      console.log('📊 Respuesta del backend:', result);
 
-      if (kitchenResult.success) {
-        // Si viene de /api/kitchen, debería tener la estructura correcta
-        if (kitchenResult.kitchen) {
-          setKitchenData(kitchenResult.kitchen);
-        } else {
-          // Fallback: construir desde stats
-          const statsRes = kitchenResult.stats;
-          const allDishes = [];
+      if (result.success) {
+        const statsRes = result.stats;
+        const allDishes = [];
 
-          // Construir lista de platos desde peopleList
-          if (statsRes.peopleList && statsRes.peopleList.length > 0) {
-            statsRes.peopleList.forEach((pedido) => {
-              [pedido.plato1, pedido.plato2].forEach((plato) => {
-                if (plato && plato.trim()) {
-                  allDishes.push({
-                    plato: plato.trim(),
-                    nombre: pedido.nombre,
-                    usuario: pedido.usuario,
-                    timestamp: pedido.timestamp,
-                  });
-                }
-              });
+        console.log('👥 PeopleList recibida:', statsRes.peopleList);
+
+        // Construir lista de platos desde peopleList
+        if (statsRes.peopleList && statsRes.peopleList.length > 0) {
+          statsRes.peopleList.forEach((pedido) => {
+            console.log('🍽️ Procesando pedido:', pedido);
+            [pedido.plato1, pedido.plato2].forEach((plato) => {
+              if (plato && plato.trim()) {
+                allDishes.push({
+                  plato: plato.trim(),
+                  nombre: pedido.nombre,
+                  usuario: pedido.usuario,
+                  timestamp: pedido.timestamp,
+                });
+              }
             });
-          }
-
-          setKitchenData({
-            dishes: allDishes,
-            totalDishes: allDishes.length,
-            totalPeople: statsRes.totalOrders,
           });
         }
+
+        console.log('🍽️ Lista final de platos:', allDishes);
+
+        setKitchenData({
+          dishes: allDishes,
+          totalDishes: allDishes.length,
+          totalPeople: statsRes.totalOrders,
+        });
+      } else {
+        console.error('❌ Backend devolvió success: false');
+        showMessage('Error: respuesta inválida del servidor', 'error');
       }
     } catch (err) {
-      console.error('Error cargando datos de cocina:', err);
-      showMessage('Error cargando datos de cocina', 'error');
+      console.error('💥 Error cargando datos de cocina:', err);
+      showMessage(`Error cargando datos de cocina: ${err.message}`, 'error');
       // En caso de error, limpiar los datos
       setKitchenData({ dishes: [], totalDishes: 0, totalPeople: 0 });
     }
