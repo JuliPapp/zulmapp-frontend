@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import './App.css';
@@ -22,7 +21,6 @@ const getCycleDate = () => {
   }
   return ahoraEnBA.toISOString().split('T')[0];
 };
-
 
 // API backend
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -68,7 +66,6 @@ const isWithinOrderTime = () => {
   return false;
 };
 
-
 // Llamada autenticada a la API
 const apiCall = async (endpoint, options = {}) => {
   const {
@@ -83,7 +80,10 @@ const apiCall = async (endpoint, options = {}) => {
       ...(options.headers || {}),
     },
   });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HTTP ${response.status}: ${errorText}`);
+  }
   return response.json();
 };
 
@@ -214,59 +214,57 @@ const App = () => {
     }
   }, [showMessage]);
 
-  // Cargar datos de cocina
-// Cargar datos de cocina
-const loadKitchenData = useCallback(async () => {
-  try {
-    // Llamamos a la API de stats y a la tabla de pedidos en paralelo
-    const [apiResult, pedidosResult] = await Promise.all([
-      apiCall('/api/stats'),
-      (async () => {
-        // Usamos la fecha de ciclo en lugar de la fecha actual pura
-        const cycleDate = getCycleDate();
-        const { data: pedidos, error } = await supabase
-          .from('pedidos')
-          .select('*')
-          .gte('fecha', cycleDate)
-          .order('timestamp', { ascending: true });
-        if (error) throw error;
-        return pedidos;
-      })(),
-    ]);
+  // Cargar datos de cocina - CORREGIDO: Solo usa el backend
+  const loadKitchenData = useCallback(async () => {
+    try {
+      // Intentamos usar la ruta de cocina si existe, sino fallback a stats
+      let kitchenResult;
+      try {
+        kitchenResult = await apiCall('/api/kitchen');
+      } catch (kitchenError) {
+        console.warn('Ruta /api/kitchen no disponible, usando /api/stats');
+        kitchenResult = await apiCall('/api/stats');
+      }
 
-    if (apiResult.success) {
-      const statsRes = apiResult.stats;
-      const pedidos = pedidosResult || [];
-      const allDishes = [];
+      if (kitchenResult.success) {
+        // Si viene de /api/kitchen, debería tener la estructura correcta
+        if (kitchenResult.kitchen) {
+          setKitchenData(kitchenResult.kitchen);
+        } else {
+          // Fallback: construir desde stats
+          const statsRes = kitchenResult.stats;
+          const allDishes = [];
 
-      // Recorremos solo plato1 y plato2 (plato3 ya no se usa)
-      pedidos.forEach((pedido) => {
-        [pedido.plato1, pedido.plato2].forEach((plato) => {
-          if (plato && plato.trim()) {
-            allDishes.push({
-              plato: plato.trim(),
-              nombre: pedido.nombre,
-              usuario: pedido.usuario,
-              timestamp: pedido.timestamp,
+          // Construir lista de platos desde peopleList
+          if (statsRes.peopleList && statsRes.peopleList.length > 0) {
+            statsRes.peopleList.forEach((pedido) => {
+              [pedido.plato1, pedido.plato2].forEach((plato) => {
+                if (plato && plato.trim()) {
+                  allDishes.push({
+                    plato: plato.trim(),
+                    nombre: pedido.nombre,
+                    usuario: pedido.usuario,
+                    timestamp: pedido.timestamp,
+                  });
+                }
+              });
             });
           }
-        });
-      });
 
-      // Actualizamos el estado con la lista completa de platos y el total
-      setKitchenData({
-        dishes: allDishes,
-        totalDishes: allDishes.length,
-        totalPeople: statsRes.totalOrders,
-      });
+          setKitchenData({
+            dishes: allDishes,
+            totalDishes: allDishes.length,
+            totalPeople: statsRes.totalOrders,
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Error cargando datos de cocina:', err);
+      showMessage('Error cargando datos de cocina', 'error');
+      // En caso de error, limpiar los datos
+      setKitchenData({ dishes: [], totalDishes: 0, totalPeople: 0 });
     }
-  } catch (err) {
-    console.error('Error cargando datos de cocina:', err);
-    showMessage('Error cargando datos de cocina', 'error');
-  }
-}, [showMessage]);
-
-
+  }, [showMessage]);
 
   // Cargar datos al iniciar sesión
   useEffect(() => {
@@ -281,9 +279,12 @@ const loadKitchenData = useCallback(async () => {
   // Auto actualización para la vista de cocina
   useEffect(() => {
     if (!user || !autoUpdate || currentView !== 'cocina') return;
-    const interval = setInterval(loadKitchenData, 30000);
+    const interval = setInterval(() => {
+      loadKitchenData();
+      loadStats(); // También actualizamos stats para mantener consistencia
+    }, 30000);
     return () => clearInterval(interval);
-  }, [user, autoUpdate, currentView, loadKitchenData]);
+  }, [user, autoUpdate, currentView, loadKitchenData, loadStats]);
 
   // Obtener valor real de plato (custom vs selección)
   const getRealPlatoValue = useCallback(
@@ -322,9 +323,11 @@ const loadKitchenData = useCallback(async () => {
         if (result.success) {
           window.alert('¡Pagalo rata asquerosa! 🐀');
           showMessage(result.message, 'success');
-          await loadCurrentOrder();
-          await loadStats();
-          await loadKitchenData();
+          await Promise.all([
+            loadCurrentOrder(),
+            loadStats(),
+            loadKitchenData()
+          ]);
         } else {
           showMessage(result.message, 'error');
         }
@@ -353,8 +356,10 @@ const loadKitchenData = useCallback(async () => {
           showMessage(result.message, 'success');
           setCurrentOrder(null);
           setFormData({ nombre: '', plato1: '', plato2: '', custom1: '', custom2: '' });
-          await loadStats();
-          await loadKitchenData();
+          await Promise.all([
+            loadStats(),
+            loadKitchenData()
+          ]);
         } else {
           showMessage(result.message, 'error');
         }
@@ -503,7 +508,7 @@ const loadKitchenData = useCallback(async () => {
           ) : (
             <ul className="dishes-list">
               {kitchenData.dishes.map((dish, index) => (
-                <li key={`${dish.plato}-${index}`} className="dish-item">
+                <li key={`${dish.plato}-${dish.nombre}-${index}`} className="dish-item">
                   <div className="dish-number">{index + 1}</div>
                   <div className="dish-details">
                     <span className="dish-name">{dish.plato}</span>
