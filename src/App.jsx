@@ -710,7 +710,10 @@ const App = () => {
               {stats.peopleList.map((person, index) => (
                 <li key={`person-${index}`} className="people-item">
                   <strong>{person.nombre}</strong> {person.usuario} -{' '}
-                  {new Date(person.timestamp).toLocaleTimeString('es-ES')}
+                  {new Date(person.timestamp).toLocaleTimeString('es-AR', {
+                    timeZone: 'America/Argentina/Buenos_Aires',
+                    hour12: false
+                  })}
                 </li>
               ))}
             </ul>
