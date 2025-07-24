@@ -8,17 +8,11 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Calcula la fecha del ciclo según la hora de Buenos Aires.
-// Si ya son las 14:00 o más, devuelve la fecha de mañana; si no, devuelve la de hoy.
+// CORREGIDO: Siempre devuelve la fecha actual para evitar problemas de timezone
 const getCycleDate = () => {
   const ahoraEnBA = new Date(
     new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' })
   );
-  const hora = ahoraEnBA.getHours();
-  if (hora >= 14) {
-    const mañana = new Date(ahoraEnBA);
-    mañana.setDate(ahoraEnBA.getDate() + 1);
-    return mañana.toISOString().split('T')[0];
-  }
   return ahoraEnBA.toISOString().split('T')[0];
 };
 
@@ -217,6 +211,10 @@ const App = () => {
   // Cargar datos de cocina - CORREGIDO: Solo usa el backend
   const loadKitchenData = useCallback(async () => {
     try {
+      const cycleDate = getCycleDate();
+      console.log('📅 Fecha que estoy buscando:', cycleDate);
+      console.log('🕐 Hora actual en BA:', new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }));
+      
       console.log('🔄 Cargando datos de cocina desde /api/stats...');
       const result = await apiCall('/api/stats');
       console.log('📊 Respuesta del backend:', result);
@@ -231,20 +229,29 @@ const App = () => {
         if (statsRes.peopleList && statsRes.peopleList.length > 0) {
           statsRes.peopleList.forEach((pedido) => {
             console.log('🍽️ Procesando pedido:', pedido);
+            console.log('📅 Fecha del pedido en DB:', pedido.fecha || 'NO HAY CAMPO FECHA');
+            console.log('🕐 Timestamp del pedido:', pedido.timestamp);
+            
             [pedido.plato1, pedido.plato2].forEach((plato) => {
               if (plato && plato.trim()) {
+                console.log('✅ Agregando plato:', plato);
                 allDishes.push({
                   plato: plato.trim(),
                   nombre: pedido.nombre,
                   usuario: pedido.usuario,
                   timestamp: pedido.timestamp,
                 });
+              } else {
+                console.log('❌ Plato vacío o nulo:', plato);
               }
             });
           });
+        } else {
+          console.log('❌ No hay peopleList o está vacía');
         }
 
         console.log('🍽️ Lista final de platos:', allDishes);
+        console.log('📊 Total platos:', allDishes.length);
 
         setKitchenData({
           dishes: allDishes,
