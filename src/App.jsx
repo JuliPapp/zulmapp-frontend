@@ -227,7 +227,7 @@ const loadKitchenData = useCallback(async () => {
         const { data: pedidos, error } = await supabase
           .from('pedidos')
           .select('*')
-          .eq('fecha', cycleDate)
+          .gte('fecha', cycleDate)
           .order('timestamp', { ascending: true });
         if (error) throw error;
         return pedidos;
