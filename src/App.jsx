@@ -85,14 +85,11 @@ const isWithinOrderTime = () => {
   const isSunday = day === 0;
   const isMonday = day === 1;
 
-  const after14 = hour >= 14;
-  const before1015 = hour < 10 || (hour === 10 && minute <= 15);
-
-  // Lógica normal de lunes a viernes
-  if (isWeekday) return after14 || before1015;
-
-  // Excepción: viernes después de las 14:00 hasta lunes 10:15
-  if (isFriday && after14) return true;
+const after1530 = (hour > 15) || (hour === 15 && minute >= 30);
+const before1015 = hour < 10 || (hour === 10 && minute <= 15);
+// ...
+if (isWeekday) return after1530 || before1015;
+if (isFriday && after1530) return true;
   if ((isSaturday || isSunday) || (isMonday && before1015)) return true;
 
   return false;
