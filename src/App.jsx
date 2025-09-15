@@ -75,24 +75,22 @@ const isWithinOrderTime = () => {
   const argTime = new Date(
     now.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' })
   );
-  const day = argTime.getDay(); // 0=Domingo, 1=Lunes, ..., 6=Sábado
-  const hour = argTime.getHours();
-  const minute = argTime.getMinutes();
+  const day    = argTime.getDay();
+const hour   = argTime.getHours();
+const minute = argTime.getMinutes();
 
-  const isWeekday = day >= 1 && day <= 5; // Lunes a viernes
-  const isFriday = day === 5;
-  const isSaturday = day === 6;
-  const isSunday = day === 0;
-  const isMonday = day === 1;
+const after1530  = (hour > 15) || (hour === 15 && minute >= 30);
+const before1015 = (hour < 10) || (hour === 10 && minute <= 15);
 
-const after1530 = (hour > 15) || (hour === 15 && minute >= 30);
-const before1015 = hour < 10 || (hour === 10 && minute <= 15);
-// ...
-if (isWeekday) return after1530 || before1015;
-if (isFriday && after1530) return true;
-  if ((isSaturday || isSunday) || (isMonday && before1015)) return true;
-
-  return false;
+// Lunes a jueves
+if (day >= 1 && day <= 4) return after1530 || before1015;
+// Viernes
+if (day === 5 && after1530) return true;
+// Sábado y domingo
+if (day === 6 || day === 0) return true;
+// Lunes hasta 10:15
+if (day === 1 && before1015) return true;
+return false;
 };
 
 // Llamada autenticada a la API
