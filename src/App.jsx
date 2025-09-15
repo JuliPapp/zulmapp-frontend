@@ -350,7 +350,7 @@ const App = () => {
           body: JSON.stringify(orderData),
         });
         if (result.success) {
-          window.alert('Gracias por confiar en Zulma');
+          window.alert('Anotate el numerito, no seas goma 🤍');
           showMessage(result.message, 'success');
           await Promise.all([
             loadCurrentOrder(),
