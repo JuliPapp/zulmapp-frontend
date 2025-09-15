@@ -568,7 +568,7 @@ const App = () => {
           🚪 Cerrar sesión
         </button>
         <button className="btn-link" onClick={() => setCurrentView('cocina')}>
-          🍽️ Display de Cocina
+          🍽️ Ver números de pedidos
         </button>
       </div>
       {isAdminUser(user) ? (
