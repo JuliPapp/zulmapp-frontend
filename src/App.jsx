@@ -350,7 +350,7 @@ const App = () => {
           body: JSON.stringify(orderData),
         });
         if (result.success) {
-          window.alert('¡Pagalo rata asquerosa! 🐀');
+          window.alert('Gracias por confiar en Zulma');
           showMessage(result.message, 'success');
           await Promise.all([
             loadCurrentOrder(),
