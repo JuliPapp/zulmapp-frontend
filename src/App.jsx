@@ -7,11 +7,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
- // Calcula la fecha del ciclo con lógica especial para fines de semana.
--// - Viernes >= 14:00 hasta Lunes <= 10:15 = pedidos para el LUNES
--// - Resto de la semana: >= 14:00 = día siguiente, <= 10:15 = mismo día
-+// - Viernes >= 15:30 hasta Lunes <= 10:15 = pedidos para el LUNES
-+// - Resto de la semana: >= 15:30 = día siguiente, <= 10:15 = mismo día
+ 
   const getCycleDate = () => {
     const ahoraEnBA = new Date(
       new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' })
@@ -21,8 +17,8 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
     const dia    = ahoraEnBA.getDay(); // 0=Dom, 1=Lun, ..., 5=Vie, 6=Sáb
     
     // Viernes >= 15:30 → pedidos para el LUNES
--   if (dia === 5 && hora >= 14) {
-+   if (dia === 5 && (hora > 15 || (hora === 15 && minuto >= 30))) {
+
+if (dia === 5 && (hora > 15 || (hora === 15 && minuto >= 30))) {
       const lunes = new Date(ahoraEnBA);
       lunes.setDate(ahoraEnBA.getDate() + 3); // Viernes + 3 días = Lunes
       return lunes.toISOString().split('T')[0];
@@ -32,8 +28,8 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
     if (dia === 6) {
 ...
     // Lógica normal para Lunes-Jueves: corte a las 15:30
--   if (hora >= 14) {
-+   if (hora > 15 || (hora === 15 && minuto >= 30)) {
+
+if (hora > 15 || (hora === 15 && minuto >= 30)) {
       const mañana = new Date(ahoraEnBA);
       mañana.setDate(ahoraEnBA.getDate() + 1);
       return mañana.toISOString().split('T')[0];
