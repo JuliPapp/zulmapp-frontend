@@ -574,7 +574,7 @@ const App = () => {
         </div>
       ) : (
         <div className="time-restriction">
-          ⏰ La app solo está disponible de lunes a viernes de 14:00 a 10:15
+          ⏰ La app solo está disponible de lunes a viernes de 15:30 a 10:15
           <br />
           Hora actual: {currentTime}
         </div>
