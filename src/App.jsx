@@ -84,14 +84,15 @@ const minute = argTime.getMinutes();
 const after1530  = (hour > 15) || (hour === 15 && minute >= 30);
 const before1015 = (hour < 10) || (hour === 10 && minute <= 15);
 
-// Lunes a jueves
-if (day >= 1 && day <= 4) return after1530 || before1015;
-// Viernes
-if (day === 5 && after1530) return true;
-// Sábado y domingo
-if (day === 6 || day === 0) return true;
-// Lunes hasta 10:15
-if (day === 1 && before1015) return true;
+// Lunes a viernes
+if (day >= 1 && day <= 5) {
+  return after1530 || before1015;
+}
+
+// Sábado y domingo: permitido todo el día
+if (day === 6 || day === 0) {
+  return true;
+}
 return false;
 };
 
