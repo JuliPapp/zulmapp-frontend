@@ -98,18 +98,17 @@ return false;
 
 // Llamada autenticada a la API
 const apiCall = async (endpoint, options = {}) => {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  const token = session?.access_token;
-  const response = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...(options.headers || {}),
-    },
-  });
+  const { data: { session } } = await supabase.auth.getSession();
+const token = session?.access_token;
+
+const response = await fetch(`${import.meta.env.VITE_API_URL}/api${endpoint}`, {
+  ...options,
+  headers: {
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  },
+});
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`HTTP ${response.status}: ${errorText}`);
