@@ -101,7 +101,7 @@ const apiCall = async (endpoint, options = {}) => {
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
 
-  const response = await fetch(`${import.meta.env.VITE_API_URL}/api${endpoint}`, {
+  const base = import.meta.env.VITE_API_URL; const path = endpoint.startsWith('/api') ? endpoint : `/api${endpoint}`; const response = await fetch(`${base}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
